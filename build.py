@@ -150,6 +150,9 @@ def process(directory, filename):
         log.debug("Rendering jinja2 template %s to %s" % (to_source(filename), to_target(filename)))
         t = jinja2_process_template(full_path)
         open(to_target(full_path),'w').write(t.render({}))
+    elif file_extension == '.less':
+        log.debug("Found less file, compiling to css")
+        os.system('lessc %s %s' % (to_source(full_path), re.sub(r'.less$','.css',to_target(full_path))))
     elif file_extension in handlers:
         log.debug("Found handler for file extension %s" % file_extension)
         content = open(to_source(full_path), 'r').read()

@@ -1,0 +1,7 @@
+{% extends '_base.jinja2' %}
+{% block content %}
+	The source is:
+    {% markdown %}
+    {{ content }}
+    {% endmarkdown %}
+{% endblock %}
