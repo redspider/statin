@@ -1,5 +1,7 @@
 <abbr class="published" title="2005-10-24T09:49:00">9:49 pm</abbr>
 
+# First post
+
 Blog posts are easy enough to create, indeed for most static generators the problem is less the creation and rendering
 of blog posts as it is obtaining the metadata from the posts in order to create good aggregate views.
 

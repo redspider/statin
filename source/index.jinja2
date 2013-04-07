@@ -82,8 +82,23 @@
 
                 ## Easy to read and understand
 
-                This is a lie.
+                Code is nice and clear and mostly comments. It's easy to add your own URL mapping or process new file
+                types if you want.
             {% endmarkdown %}
+
+            <h2>Blog posts</h2>
+            {% for article in glob('blog/*.md') %}
+                <article>
+                    <header>
+                        <a href="{{ map(article) }}">{{ select(grab(article).as_html(),'h1').text() }}</a>
+                    </header>
+                    <p>
+                        {{ select(grab(article).as_html(),'h1 + p').text() }}
+                    </p>
+                </article>
+
+            {% endfor %}
+
 
             <h2>Articles</h2>
             {% for article in glob('articles/*.md') %}
