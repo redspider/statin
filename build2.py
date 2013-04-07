@@ -2,13 +2,13 @@
 """
 Current issues:
 
- * Tree based handlers don't work if you use obtain, because obtain is at a different point in picking them up
  * You can probably go into an infinite loop pretty easily using grab
- * Code is shit
  * Not sure how to do URL remapping for blog posts you want url'd by date or something
- * Other meta-data like don't-post-it-yet - fuckit, put it in a different dir
- * Post-processing on markdown or other content?
- * Selectors on markdown source instead of output?
+ * How to deal with hrefs and extension rewriting for output properly
+ * Formatting/Wrapping markdown
+ * Image resizing/conversion
+ * Perhaps create a couple of intermediate classes for things like HTMLOutputFile or something
+ * Metadata from .yml files
 """
 
 import glob
@@ -26,6 +26,7 @@ logging.basicConfig(level=logging.WARN)
 log = logging.getLogger('statix')
 
 import jinja2.ext
+
 
 class Markdown2Extension(jinja2.ext.Extension):
     """
@@ -131,6 +132,15 @@ class Builder(object):
         """
         self.env.register(handler)
 
+    def register_map(self, mapper):
+        """
+        Register a path mapper
+
+        @param mapper: Path mapper
+        @type mapper: class
+        """
+        self.env.register_map(mapper)
+
     def clean(self):
         """
         Clean out the destination directory
@@ -178,6 +188,7 @@ class BuildEnvironment(object):
     source_dir = None
     dest_dir = None
     handlers = None
+    mappers = None
     jinja2_env = None
 
     def __init__(self, source_dir, dest_dir):
@@ -191,6 +202,7 @@ class BuildEnvironment(object):
         self.source_dir = path(source_dir).abspath()
         self.dest_dir = path(dest_dir).abspath()
         self.handlers = []
+        self.mappers = []
 
     def register(self, handler):
         """
@@ -201,6 +213,16 @@ class BuildEnvironment(object):
 
         log.debug("Registering handler %r" % handler)
         self.handlers.append(handler(self))
+
+    def register_map(self, mapper):
+        """
+        Add a path mapper
+
+        @param mapper: Path mapper
+        @type mapper: class
+        """
+        log.debug("Registering path mapper %r" % mapper)
+        self.mappers.append(mapper(self))
 
     def get(self, file_path):
         """
@@ -221,6 +243,26 @@ class BuildEnvironment(object):
 
         raise NoHandlerFoundError(file_path)
 
+    def map(self, file_path):
+        """
+        Convert a source path to a destination path
+
+        @param file_path: Source path
+        @type file_path: path
+        @return Relative destination path
+        @rtype str
+        """
+
+        file_path = self.source_dir.relpathto(file_path)
+
+        log.debug("Looking for mapper for %s" % file_path)
+
+        for mapper in self.mappers:
+            if mapper.match(file_path):
+                log.debug("Found mapper %r" % mapper)
+                return mapper.relative(file_path)
+
+
     def to_dest(self, file_path):
         """
         Convert a source path to a destination path
@@ -230,8 +272,9 @@ class BuildEnvironment(object):
         @return Destination path
         @rtype str
         """
+
         # Obtain the relative path from source to file, then add that to the destination
-        return self.dest_dir.joinpath(self.source_dir.relpathto(file_path))
+        return self.dest_dir.joinpath(self.map(file_path))
 
 
 class BaseFileHandler(object):
@@ -298,6 +341,18 @@ class BaseFile(object):
         """
         raise NotImplementedError()
 
+    def ensure_output_dir(self, file_path):
+        """
+        Ensure the dir for the given file path exists
+
+        @param file_path: Path of file or dir
+        @type file_path: path
+        """
+
+        # Ensure parent directory exists
+        if not file_path.parent.isdir():
+            file_path.parent.makedirs()
+
 
 class AnyFileHandler(BaseFileHandler):
     """
@@ -343,10 +398,7 @@ class AnyFile(BaseFile):
         @type file_path: path
         """
 
-        # Ensure parent directory exists
-        if not file_path.parent.isdir():
-            file_path.parent.makedirs()
-        
+        self.ensure_output_dir(file_path)
         self.file_path.copy(file_path)
 
 
@@ -355,7 +407,7 @@ class Jinja2FileHandler(BaseFileHandler):
     File handler for .jinja2 files
     """
 
-    jinja2env = None
+    jinja2_env = None
 
     def __init__(self, env):
         """
@@ -372,6 +424,7 @@ class Jinja2FileHandler(BaseFileHandler):
         self.jinja2_env.globals['grab'] = self.jinja2_grab
         self.jinja2_env.globals['select'] = self.jinja2_select
         self.jinja2_env.globals['glob'] = self.jinja2_glob
+        self.jinja2_env.globals['map'] = self.env.map
 
     def match(self, file_path):
         """
@@ -452,7 +505,9 @@ class Jinja2File(BaseFile):
         @param file_path: Jinja2 file path
         @type file_path: path
         """
-        self.template = self.handler.jinja2env.get_template(file_path)
+
+        self.file_path = file_path
+        self.template = self.handler.jinja2_env.get_template(str(self.env.source_dir.relpathto(file_path)))
 
     def write_to(self, file_path):
         """
@@ -461,7 +516,10 @@ class Jinja2File(BaseFile):
         @param file_path: Destination file path
         @type file_path: path
         """
-        open(file_path, 'w').write(self.template.render())
+
+        self.ensure_output_dir(file_path)
+        output_file_path = file_path.stripext() + '.html'
+        open(output_file_path, 'w').write(self.template.render())
 
     def as_html(self):
         """
@@ -481,9 +539,8 @@ class MarkdownFileHandler(BaseFileHandler):
 
     def __init__(self, env):
         """
-            Set up handler for Markdown files
-
-            """
+        Set up handler for Markdown files
+        """
         super(MarkdownFileHandler, self).__init__(env)
         self.markdown = markdown2.Markdown(extras=['fenced-code-blocks', 'footnotes', 'header-ids'])
 
@@ -527,13 +584,15 @@ class MarkdownFile(BaseFile):
 
     def write_to(self, file_path):
         """
-        Write out result of Markdown processing to given path.
+        Write out result of Markdown processing to given path, as HTML.
 
         @param file_path: Output file path
         @type file_path: path
         """
 
-        open(file_path, 'w').write(self.as_html())
+        self.ensure_output_dir(file_path)
+        output_file_path = file_path.stripext() + '.html'
+        open(output_file_path, 'w').write(self.as_html())
 
     def as_html(self):
         """
@@ -543,6 +602,136 @@ class MarkdownFile(BaseFile):
         @rtype: str|unicode
         """
         return self.handler.markdown.convert(open(self.file_path, 'r').read())
+
+
+class LessFileHandler(BaseFileHandler):
+    """
+    Compile a provided less file
+    """
+    def match(self, file_path):
+        """
+        Match .less files
+
+        @param file_path: File path
+        @type file_path: path
+        @return: Is a less file?
+        @rtype: bool
+        """
+        return file_path.ext == '.less'
+
+    def load(self, file_path):
+        """
+        Return a .less file representation
+
+        @param file_path: Path to less file
+        @type file_path: path
+        @return: Less file
+        @rtype: LessFile
+        """
+        f = LessFile(self.env, self)
+        f.read_from(file_path)
+        return f
+
+
+class LessFile(BaseFile):
+    """
+    Represent a .less file
+    """
+    def read_from(self, file_path):
+        """
+        Read a given .less file
+
+        @param file_path: Path to .less file
+        @type file_path: path
+        """
+        self.file_path = file_path
+
+    def write_to(self, file_path):
+        """
+        Write out a compiled version of the .less file to a given path
+
+        @param file_path: Path for .css file
+        @type file_path: path
+        """
+        self.ensure_output_dir(file_path)
+        output_file_path = file_path.stripext() + '.css'
+
+        os.system("lessc %s %s" % (self.file_path, output_file_path))
+
+
+class PathMapBase(object):
+    """
+    Base class for Path Remappers
+    """
+    env = None
+
+    def __init__(self, env):
+        """
+        Record environment for mapper
+        @param env: Environment to map within
+        @type env: BuildEnvironment
+        """
+        self.env = env
+
+    def relative(self, file_path):
+        """
+        Map a source file path to a relative URL (relative path to destination)
+
+        @param file_path: Source path
+        @type file_path: path
+        @return: Destination path
+        @rtype: path
+        """
+        raise NotImplementedError()
+
+
+class DefaultPathMap(PathMapBase):
+    """
+    Path mapper that just maps straight across.
+    """
+
+    def match(self, file_path):
+        """
+        Check to see whether this mapper matches this path
+        @param file_path: Source path
+        @type file_path: path
+        @return: Does it match?
+        @rtype: bool
+        """
+        return True
+
+    def relative(self, file_path):
+        """
+        Map a source file path straight to destination path
+
+        @param file_path: Source path
+        @type file_path: path
+        @return: Destination path
+        @rtype: path
+        """
+        return file_path
+
+
+class Jinja2PathMap(PathMapBase):
+    """
+    Path mapper that makes .jinja2 -> .html
+    """
+    def match(self, file_path):
+        return file_path.ext == '.jinja2'
+
+    def relative(self, file_path):
+        return file_path.stripext() + '.html'
+
+
+class MarkdownPathMap(PathMapBase):
+    """
+    Path mapper that makes .md -> .html
+    """
+    def match(self, file_path):
+        return file_path.ext == '.md'
+
+    def relative(self, file_path):
+        return file_path.stripext() + '.html'
 
 
 if __name__ == "__main__":
@@ -558,6 +747,14 @@ if __name__ == "__main__":
     log.debug("Verbose mode: %s" % options.verbose)
 
     builder = Builder('source', 'output')
+    builder.register(Jinja2FileHandler)
+    builder.register(MarkdownFileHandler)
+    builder.register(LessFileHandler)
     builder.register(AnyFileHandler)
+
+    builder.register_map(Jinja2PathMap)
+    builder.register_map(MarkdownPathMap)
+    builder.register_map(DefaultPathMap)
+
     builder.clean()
     builder.build()
