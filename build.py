@@ -6,6 +6,10 @@ Current issues:
  * Image resizing/conversion
  * Perhaps create a couple of intermediate classes for things like HTMLOutputFile or something
  * Metadata from .yml files
+ * Blogs are shit.
+   * Next/previous post
+   * Formatting of date/time
+   * Indexes, possibly with javascript to allow sorting / pagination
 """
 import sys
 import time
