@@ -1,0 +1,25 @@
+{% extends '_base.jinja2' %}
+{% block content %}
+    <div class="row">
+        <div class="span12">
+
+            {% markdown %}
+                # Blog example
+
+                Blog entries are listed below.
+            {% endmarkdown %}
+
+            {% for article in glob('blog/*.md') %}
+                <article>
+                    <header>
+                        <a href="{{ map(article) }}">{{ select(grab(article).as_html(),'h1').text() }}</a>
+                    </header>
+                    <p>
+                        {{ select(grab(article).as_html(),'h1 + p').text() }}
+                    </p>
+                </article>
+
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}
