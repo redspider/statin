@@ -89,10 +89,10 @@
             {% for article in glob('articles/*.md') %}
                 <article>
                     <header>
-                        <a href="{{ article }}">{{ select(grab(article),'h1').text() }}</a>
+                        <a href="{{ article }}">{{ select(grab(article).as_html(),'h1').text() }}</a>
                     </header>
                     <p>
-                        {{ select(grab(article),'h1 + p').text() }}
+                        {{ select(grab(article).as_html(),'h1 + p').text() }}
                     </p>
                 </article>
 
