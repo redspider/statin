@@ -392,7 +392,7 @@ class AnyFile(BaseFile):
         """
 
         self.ensure_output_dir(file_path)
-        self.file_path.copy(self.file_path, file_path)
+        self.file_path.copy(file_path)
 
 
 class Jinja2FileHandler(BaseFileHandler):
@@ -810,6 +810,10 @@ def watch_and_build(source_dir, destination_dir):
             perform_build(self.source_dir, self.destination_dir)
 
     log.warn("Monitoring source directory and rebuilding on change. ^C to stop")
+
+    # Do one run immediately
+    perform_build(source_dir, destination_dir)
+
     observer = watchdog.observers.Observer()
     observer.schedule(FileChangeEventHandler(source_dir, destination_dir), path=source_dir, recursive=True)
     observer.start()
