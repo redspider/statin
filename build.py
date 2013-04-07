@@ -511,7 +511,7 @@ class Jinja2File(BaseFile):
         """
 
         self.ensure_output_dir(file_path)
-        open(file_path, 'w').write(self.template.render())
+        open(file_path, 'w').write(self.template.render(source_path=self.file_path, destination_path=file_path, url=self.env.map(self.file_path)))
 
     def as_html(self, **kwargs):
         """

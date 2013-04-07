@@ -3,16 +3,14 @@
     <div class="row">
         <div class="span12">
 
-            {% markdown %}
-                # Blog example
+            <h3>All blog entries</h3>
 
-                Blog entries are listed below.
-            {% endmarkdown %}
-
-            {% for article in glob('blog/*.md') %}
+            {% for article in glob('blog/2*') %}
                 <article>
                     <header>
-                        <a href="{{ map(article) }}">{{ select(grab(article).as_html(),'h1').text() }}</a>
+                        <h4>
+                            <a href="{{ map(article) }}">{{ select(grab(article).as_html(),'h1').text() }}</a>
+                        </h4>
                     </header>
                     <p>
                         {{ select(grab(article).as_html(),'h1 + p').text() }}
