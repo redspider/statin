@@ -7,6 +7,8 @@ Current issues:
  * Perhaps create a couple of intermediate classes for things like HTMLOutputFile or something
  * Metadata from .yml files
 """
+import sys
+import time
 
 import os, re, jinja2, markdown2
 import jinja2.ext
@@ -756,19 +758,80 @@ class MarkdownPathMap(PathMapBase):
         return file_path.stripext() + '.html'
 
 
-if __name__ == "__main__":
-    usage = "usage: %prog [options]"
-    parser = OptionParser(usage="usage: %prog [options]")
-    parser.add_option("--verbose","-v",
-                      help = "print debugging output",
-                      action = "store_true")
-    (options, args) = parser.parse_args()
-    if options.verbose:
-        log.setLevel(logging.DEBUG)
+def watch_and_build(source_dir, destination_dir):
+    """
+    This is the autobuilder, which requires the watchdog package to work. Because we don't really want to
+    *require* watchdog in case people are on funny platforms, we test for existence and only define then.
 
-    log.debug("Verbose mode: %s" % options.verbose)
+    @param source_dir: Source directory
+    @type source_dir: str|unicode
+    @param destination_dir: Destination directory
+    @type destination_dir: str|unicode
 
-    builder = Builder('source', 'output')
+    """
+
+    try:
+        import watchdog
+        import watchdog.observers
+        import watchdog.events
+    except ImportError:
+        watchdog = None
+    if not watchdog:
+        log.error("Cannot autobuild, you need the watchdog package installed. Try pip install watchdog")
+        sys.exit(1)
+
+    class FileChangeEventHandler(watchdog.events.FileSystemEventHandler):
+        """
+        File change event handler for triggering a build on file change
+        """
+        source_dir = None
+        destination_dir = None
+
+        def __init__(self, source_dir, destination_dir):
+            """
+            Set up event handler
+
+            @param source_dir: Source directory
+            @type source_dir: str|unicode
+            @param destination_dir: Destination directory
+            @type destination_dir: str|unicode
+            """
+            self.source_dir = source_dir
+            self.destination_dir = destination_dir
+
+        def on_any_event(self, event):
+            """
+            Call build
+
+            @param event: Event
+            @type event: watchdog.events.FileSystemEvent
+            """
+            log.warn("Change detected. Rebuilding")
+            perform_build(self.source_dir, self.destination_dir)
+
+    log.warn("Monitoring source directory and rebuilding on change. ^C to stop")
+    observer = watchdog.observers.Observer()
+    observer.schedule(FileChangeEventHandler(source_dir, destination_dir), path=source_dir, recursive=True)
+    observer.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        observer.stop()
+    observer.join()
+
+
+def perform_build(source_dir, destination_dir):
+    """
+    Perform a single build
+
+    @param source_dir: Source directory
+    @type source_dir: str|unicode
+    @param destination_dir: Destination directory
+    @type destination_dir: str|unicode
+    """
+
+    builder = Builder(source_dir, destination_dir)
     builder.register(Jinja2FileHandler)
     builder.register(MarkdownFileHandler)
     builder.register(LessFileHandler)
@@ -780,3 +843,33 @@ if __name__ == "__main__":
 
     builder.clean()
     builder.build()
+
+
+if __name__ == "__main__":
+    usage = "usage: %prog [options]"
+    parser = OptionParser(usage="usage: %prog [options]")
+    parser.add_option("--verbose","-v",
+                      help = "print debugging output",
+                      action = "store_true")
+    parser.add_option("--monitor","-m",
+                      help = "Monitor and rebuild whenever changes are detected",
+                      action = "store_true")
+    parser.add_option("--source","-s", type="string", default="source",
+                      help = "Source directory")
+    parser.add_option("--destination","-d", type="string", default="output",
+                      help = "Destination directory")
+    (options, args) = parser.parse_args()
+    if options.verbose:
+        log.setLevel(logging.DEBUG)
+
+    log.debug("Verbose mode: %s" % options.verbose)
+
+    source_dir = options.source
+    destination_dir = options.destination
+
+    if options.monitor:
+        watch_and_build(source_dir, destination_dir)
+    else:
+        perform_build(source_dir, destination_dir)
+
+

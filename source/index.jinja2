@@ -1,7 +1,7 @@
 {% extends '_base.jinja2' %}
 {% block content %}
     <div class="row">
-        <div class="span12">
+        <div class="span8">
 
             {% markdown %}
                 # Statin site renderer
@@ -37,6 +37,14 @@
                 ```
 
                 Or that could be a copy into your Dropbox folder or whatever.
+
+                If you want to avoid having to run build.py every time you make a change, do:
+
+                ```
+                pip install watchdog
+                ```
+
+                In the virtualenv then run with the ```--monitor``` switch, that'll watch and rebuild on change.
 
                 ## Excellent base to start from
 
@@ -84,8 +92,10 @@
 
                 Code is nice and clear and mostly comments. It's easy to add your own URL mapping or process new file
                 types if you want.
-            {% endmarkdown %}
 
+            {% endmarkdown %}
+        </div>
+        <div class="span4">
             <h2>Blog posts</h2>
             {% for article in glob('blog/*.md') %}
                 <article>
