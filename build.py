@@ -2,11 +2,9 @@
 """
 Current issues:
 
- * Update docs on install process
  * Build docs and put them in gh-pages so that people can read them or something
  * Document -v switch
  * Handle the lack of less compiler well
-   * Include bootstrap vanilla straight from site, allows effective use of plugins
    * Warn if lessc isn't available, use vanilla
  * Determine how to wrap HTML nicely
    * Modify CSS, static element paths, leave everything else alone?
@@ -31,7 +29,7 @@ from optparse import OptionParser
 import logging
 
 logging.basicConfig(level=logging.WARN)
-log = logging.getLogger('statix')
+log = logging.getLogger('statin')
 
 
 class Markdown2Extension(jinja2.ext.Extension):
@@ -490,6 +488,7 @@ class Jinja2FileHandler(BaseFileHandler):
         return [self.env.source_dir.relpathto(p) for p in self.env.source_dir.glob(pattern)]
 
 
+
 class Jinja2File(BaseFile):
     """
     Represent a Jinja2 file
@@ -524,7 +523,7 @@ class Jinja2File(BaseFile):
         """
 
         self.ensure_output_dir(file_path)
-        open(file_path, 'w').write(self.template.render(source_path=self.file_path, destination_path=file_path, url=self.env.map(self.file_path)))
+        open(file_path, 'w').write(self.template.render(source_path=self.file_path, destination_path=file_path, url=self.env.map(self.file_path), to_root=self.jinja2_to_root()))
 
     def as_html(self, **kwargs):
         """
@@ -533,7 +532,16 @@ class Jinja2File(BaseFile):
         @return: HTML
         @rtype: basestring
         """
-        return self.template.render(**kwargs)
+        return self.template.render(to_root=self.jinja2_to_root(), **kwargs)
+
+    def jinja2_to_root(self):
+        """
+        Return the relative prefix to get to the root of the site
+
+        @return: Relative path, ie ../../
+        @rtype: str|unicode
+        """
+        return str(self.file_path.parent.relpathto(self.env.source_dir))
 
 
 class MarkdownFileHandler(BaseFileHandler):
