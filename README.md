@@ -40,7 +40,7 @@ and autobuild.
 
 ### Excellent base to start from
 
-By virtue of cloning, you get this site, which is based on Bootstrap and has the Less files etc all ready to
+By virtue of cloning, you get this site, which is based on Bootstrap and all ready to
 roll. In addition, this site is set up so you've got a set of example articles and you can see how that all
 works. Just get in there, modify a couple of files and it's all you.
 
@@ -76,7 +76,7 @@ except it receives the content of the Markdown file as the variable ```content``
 tags to have it processed, or you could do other fancy stuff.
 
 Finally, you can put anything else in the tree and it'll just be copied across - HTML, images, whatever. The only
-other thing that gets messed around with is ```.less``` which gets compiled.
+other thing that gets messed around with is ```.less``` which gets compiled if you have ```lessc``` available in your path.
 
 ### Easy to read and understand
 
