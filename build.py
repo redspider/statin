@@ -4,11 +4,9 @@ Current issues:
 
  * Build docs and put them in gh-pages so that people can read them or something
  * Document -v switch
- * Handle the lack of less compiler well
-   * Warn if lessc isn't available, use vanilla
+ * Warn if lessc isn't available
  * Determine how to wrap HTML nicely
    * Modify CSS, static element paths, leave everything else alone?
- * Relative reference to static files so you can look on the filesystem instead of needing a server
  * You can probably go into an infinite loop pretty easily using grab
  * Image resizing/conversion
  * Perhaps create a couple of intermediate classes for things like HTMLOutputFile or something
@@ -830,7 +828,7 @@ def watch_and_build(source_dir, destination_dir):
             log.warn("Change detected. Rebuilding")
             perform_build(self.source_dir, self.destination_dir)
 
-    log.warn("Monitoring source directory and rebuilding on change. ^C to stop")
+    print "Monitoring source directory and rebuilding on change. ^C to stop"
 
     # Do one run immediately
     perform_build(source_dir, destination_dir)
@@ -855,7 +853,7 @@ def perform_build(source_dir, destination_dir):
     @param destination_dir: Destination directory
     @type destination_dir: str|unicode
     """
-
+    print "Building from %s to %s" % (source_dir, destination_dir)
     builder = Builder(source_dir, destination_dir)
     builder.register(Jinja2FileHandler)
     builder.register(MarkdownFileHandler)
@@ -868,6 +866,7 @@ def perform_build(source_dir, destination_dir):
 
     builder.clean()
     builder.build()
+    print "Done"
 
 
 if __name__ == "__main__":
