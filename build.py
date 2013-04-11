@@ -2,6 +2,15 @@
 """
 Current issues:
 
+ * Update docs on install process
+ * Build docs and put them in gh-pages so that people can read them or something
+ * Document -v switch
+ * Handle the lack of less compiler well
+   * Include bootstrap vanilla straight from site, allows effective use of plugins
+   * Warn if lessc isn't available, use vanilla
+ * Determine how to wrap HTML nicely
+   * Modify CSS, static element paths, leave everything else alone?
+ * Relative reference to static files so you can look on the filesystem instead of needing a server
  * You can probably go into an infinite loop pretty easily using grab
  * Image resizing/conversion
  * Perhaps create a couple of intermediate classes for things like HTMLOutputFile or something

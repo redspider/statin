@@ -1,7 +1,6 @@
-# Statin site renderer
+## Statin, the site renderer
 
-The statin site renderer is designed to be a dead simple way of turning content of various levels of dynamicism
-into a static set of HTML suitable for serving via an HTTP server like Apache. It has the following basic goals:
+Statin has the following goals:
 
  * Trivial installation and use
  * Excellent base to start from
@@ -9,16 +8,20 @@ into a static set of HTML suitable for serving via an HTTP server like Apache. I
  * Support for rendering complex templates, straight HTML and simple Markdown files
  * Easy to read and understand
 
-Statin solves these problems using the following basic strategies:
+Statin solves these problems using the following strategies:
 
-## Trivial installation and use
+### Trivial installation and use
 
 To create a new statin site:
 
- * Fork the statin repo on github
- * Clone it into a dir locally
- * Run virtualenv on that dir
- * Run pip install -r requirements.txt
+```
+git clone https://github.com/redspider/statin.git my-new-site
+cd my-new-site
+virtualenv .
+source bin/activate
+pip install -r requirements.txt
+pip install watchdog
+```
 
 Then you're done. you can run build.py from there and it'll build this site, which you can immediately
 start editing.
@@ -32,18 +35,21 @@ rsync output/ ssh://my-awesome-host.com/my-site/
 
 Or that could be a copy into your Dropbox folder or whatever.
 
-## Excellent base to start from
+To avoid having to run build.py every time you make a change, use the --monitor switch and it'll watch
+and autobuild.
+
+### Excellent base to start from
 
 By virtue of cloning, you get this site, which is based on Bootstrap and has the Less files etc all ready to
 roll. In addition, this site is set up so you've got a set of example articles and you can see how that all
 works. Just get in there, modify a couple of files and it's all you.
 
-## Decent looking
+### Decent looking
 
 It's bootstrap, but it's not just bootstrap, the example pages all aim to look fairly good out of the box
 without being complex so that you can easily stamp your own style on 'em.
 
-## Support for rendering complex templates, straight HTML and simple Markdown files
+### Support for rendering complex templates, straight HTML and simple Markdown files
 
 Sometimes you need to do complicated stuff, maybe you wanna render an index of your blog posts or automatically
 build a menu or gallery based on the contents of a directory. For that stuff you can write .jinja2 templates.
@@ -52,11 +58,9 @@ These templates can do inheritance and all kinds of other shiny, they have extra
 list other files in the static source tree and inspect the output of those files. As an example:
 
 ```
-{% raw %}
 {% for article in glob('articles/*.md') %}
     {{ select(grab(article),'h1').text() }}
 {% endfor %}
-{% endraw %}
 ```
 
 This gets the names of all the Markdown files in the articles/ dir and iterates through them. For
@@ -74,7 +78,7 @@ tags to have it processed, or you could do other fancy stuff.
 Finally, you can put anything else in the tree and it'll just be copied across - HTML, images, whatever. The only
 other thing that gets messed around with is ```.less``` which gets compiled.
 
-## Easy to read and understand
+### Easy to read and understand
 
 Code is nice and clear and mostly comments. It's easy to add your own URL mapping or process new file
 types if you want.
