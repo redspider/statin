@@ -1,6 +1,4 @@
 {% extends 'blog/_blog_base.jinja2' %}
 {% block blog_content %}
-        {% markdown %}
-        {{ content }}
-        {% endmarkdown %}
+        {{ post.html }}
 {% endblock %}

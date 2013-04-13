@@ -1,0 +1,4 @@
+---
+type: blog
+index_renderer: index.jinja2
+post_renderer: post.jinja2

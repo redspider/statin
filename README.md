@@ -20,7 +20,7 @@ cd my-new-site
 virtualenv .
 source bin/activate
 pip install -r requirements.txt
-pip install watchdog
+pip install watchdog # recommended for auto-build, not required
 ```
 
 Then you're done. you can run build.py from there and it'll build this site, which you can immediately

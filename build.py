@@ -15,7 +15,30 @@ Current issues:
    * Next/previous post
    * Formatting of date/time
    * Indexes, possibly with javascript to allow sorting / pagination
+
+
+ ### Possible approach to HTML handling
+
+ Allow the use of an option or _auto-html.jinja2 which can pull the <body> from an HTML file and replace all the headers
+ with a standard set of stuff.
+
+ ### Approach for blog handling
+
+ An index.yml file in the root that allows the user to optionally "type" a directory. This could be used to assist in
+ generating a blog, or a gallery or whatever.
+
+ * Need to clean up code, particularly path handling within that area
+ * Need to update blog templates to include
+   * Next/Prev
+   * Decent look
+   * Date formatter
+   * Maybe a sidebar or something
+   * <-- more --> support?
+
+ WARNING/TODO: DO NOT FORGET YOU'RE USING A GIT VERSION OF CSSSELECT TO SUPPORT :first
+
 """
+from datetime import datetime
 import sys
 import time
 
@@ -25,6 +48,7 @@ from path import path
 from pyquery import PyQuery as pq
 from optparse import OptionParser
 import logging
+import yaml
 
 logging.basicConfig(level=logging.WARN)
 log = logging.getLogger('statin')
@@ -143,6 +167,15 @@ class Builder(object):
         """
         self.env.register_map(mapper)
 
+    def register_type(self, type_handler):
+        """
+        Register a directory type handler
+
+        @param type_handler: Type handler
+        @type type_handler: class
+        """
+        self.env.register_type(type_handler)
+
     def clean(self):
         """
         Clean out the destination directory
@@ -162,25 +195,7 @@ class Builder(object):
         """
 
         log.debug("Initiating build")
-        for root, dirs, files in os.walk(str(self.env.source_dir)): # Sadly using os.walk because path.walk is broken
-            # Remove any directories starting with _, we ignore those for build
-            for d in dirs:
-                if d.startswith('_'):
-                    log.debug("Ignoring directory %s" % d)
-                    dirs.remove(d)
-
-            # Render each file
-            for fn in [self.env.source_dir.joinpath(root, file_path) for file_path in files]:
-
-                if fn.name.startswith('_'):
-                    # Ignore files starting with _
-                    log.debug("Ignoring file %s" % fn)
-                    continue
-
-                log.debug("Getting file %s" % fn)
-                f = self.env.get(fn)
-                log.debug("Writing conversion of file %s" % fn)
-                f.write_to(self.env.to_dest(fn))
+        self.env.dispatch_type(self.env.source_dir)
 
 
 class BuildEnvironment(object):
@@ -192,6 +207,8 @@ class BuildEnvironment(object):
     handlers = None
     mappers = None
     jinja2_env = None
+    type_handlers = None
+    type_map = None
 
     def __init__(self, source_dir, dest_dir):
         """
@@ -205,6 +222,8 @@ class BuildEnvironment(object):
         self.dest_dir = path(dest_dir).abspath()
         self.handlers = []
         self.mappers = []
+        self.type_handlers = []
+        self.type_map = dict()
 
     def register(self, handler):
         """
@@ -225,6 +244,36 @@ class BuildEnvironment(object):
         """
         log.debug("Registering path mapper %r" % mapper)
         self.mappers.append(mapper(self))
+
+    def register_type(self, type_handler):
+        """
+        Register a directory type handler
+
+        @param type_handler: Type handler
+        @type type_handler: class
+        """
+        log.debug("Registering type handler %r" % type_handler)
+        self.type_handlers.append(type_handler(self))
+
+    def dispatch_type(self, full_path):
+        """
+        Call handler for any given dir
+
+        @param full_path: Path to directory
+        @type full_path: path
+        """
+        meta = dict()
+        yaml_path = full_path.joinpath('_index.yml')
+
+        if yaml_path.exists():
+            log.debug("Found an _index.yml in %s" % yaml_path)
+            meta = yaml.load(open(yaml_path, 'r'), yaml.Loader)
+
+        for t in self.type_handlers:
+            if t.match(full_path, meta):
+                self.type_map[full_path] = t.load(full_path, meta)
+                log.debug("Registered type %r for path %s" % (self.type_map[full_path], full_path))
+                self.type_map[full_path].process()
 
     def get(self, file_path):
         """
@@ -263,7 +312,6 @@ class BuildEnvironment(object):
             if mapper.match(file_path):
                 log.debug("Found mapper %r" % mapper)
                 return mapper.relative(file_path)
-
 
     def to_dest(self, file_path):
         """
@@ -512,7 +560,7 @@ class Jinja2File(BaseFile):
         self.file_path = file_path
         self.template = self.handler.jinja2_env.get_template(str(self.env.source_dir.relpathto(file_path)))
 
-    def write_to(self, file_path):
+    def write_to(self, file_path, **kwargs):
         """
         Write out a Jinja2 file to the given path
 
@@ -521,7 +569,7 @@ class Jinja2File(BaseFile):
         """
 
         self.ensure_output_dir(file_path)
-        open(file_path, 'w').write(self.template.render(source_path=self.file_path, destination_path=file_path, url=self.env.map(self.file_path), to_root=self.jinja2_to_root()))
+        open(file_path, 'w').write(self.template.render(source_path=self.file_path, destination_path=file_path, url=self.env.map(self.file_path), to_root=self.jinja2_to_root(), **kwargs))
 
     def as_html(self, **kwargs):
         """
@@ -535,6 +583,7 @@ class Jinja2File(BaseFile):
     def jinja2_to_root(self):
         """
         Return the relative prefix to get to the root of the site
+        TODO: This is not correct, it needs to use the path mappers to determine the end url relative to root
 
         @return: Relative path, ie ../../
         @rtype: str|unicode
@@ -702,6 +751,218 @@ class LessFile(BaseFile):
         os.system("lessc %s %s" % (self.file_path, output_file_path))
 
 
+class BaseTypeHandler(object):
+    """
+    Base class for matching and loading Directory Types
+    """
+    def __init__(self, env):
+        """
+        Init the handler with the current environment
+
+        @param env: Environment
+        @type env: BuildEnvironment
+        """
+        self.env = env
+
+    def match(self, dir_path, meta):
+        """
+        Match the path against the types this handler can process
+        """
+        raise NotImplementedError()
+
+    def load(self, dir_path, meta):
+        """
+        Load a type for the given path
+        """
+        raise NotImplementedError()
+
+
+class BaseType(object):
+    """
+    Base class for a Directory Type
+    """
+    def __init__(self, env, handler, dir_path, meta):
+        """
+        Init the type with the current env and handler
+
+        @param env: Build environment
+        @type env: BuildEnvironment
+        @param handler: Handler for this type
+        @type handler: BaseTypeHandler
+        @param dir_path: Path to directory for type
+        @type dir_path: path
+        @param meta: Meta (usually from _index.yml)
+        @type meta: dict
+
+        """
+        self.env = env
+        self.handler = handler
+        self.dir_path = dir_path
+        self.meta = meta
+
+    def process(self):
+        """
+        Perform whatever processing the type needs to do
+        """
+        raise NotImplementedError()
+
+    def dispatch_dirs(self):
+        """
+        Helper to dispatch dirs
+        """
+
+        for d in self.dir_path.dirs():
+            if d.startswith('_'):
+                log.debug("Ignoring directory %s" % d)
+                continue
+
+            full_path = self.dir_path.joinpath(d)
+
+            self.env.dispatch_type(full_path)
+
+
+class DefaultTypeHandler(BaseTypeHandler):
+    def match(self, dir_path, meta):
+        """
+        Default type, just parses the directory with handlers
+        """
+        if not meta.has_key('type') or meta['type'] == 'default':
+            return True
+        return False
+
+    def load(self, dir_path, meta):
+        """
+        Load a default dir
+        """
+        return DefaultType(self.env, self, dir_path, meta)
+
+
+class DefaultType(BaseType):
+    def process(self):
+        """
+        Process a directory
+        """
+
+        for fn in self.dir_path.files():
+            if fn.name.startswith('_'):
+                # Ignore files starting with _
+                log.debug("Ignoring file %s" % fn)
+                continue
+
+            log.debug("Getting file %s" % fn)
+            f = self.env.get(fn)
+            log.debug("Writing conversion of file %s" % fn)
+            f.write_to(self.env.to_dest(fn))
+
+        self.dispatch_dirs()
+
+
+class BlogTypeHandler(BaseTypeHandler):
+    def match(self, dir_path, meta):
+        """
+        Match against blog dirs
+        """
+        if meta.get('type', None) == 'blog':
+            return True
+
+    def load(self, dir_path, meta):
+        """
+        Load a blog dir
+        """
+        return BlogType(self.env, self, dir_path, meta)
+
+
+class InvalidBlogPostError(Exception):
+    pass
+
+
+class BlogPost(object):
+    """
+    Blog post
+    """
+    env = None
+    posted = None
+    title = None
+    filename = None
+    file_path = None
+    html = None
+
+    def load_from(self, env, full_path):
+        """
+        Load in blog post
+        """
+
+        self.env = env
+
+        m = re.search(r'^(\d+)-(\d+)-(\d+)-(\d+)-(\d+)-([^\.]+)', full_path.name)
+        if not m:
+            return False
+
+        (year, month, day, hour, minute, title) = m.groups()
+        self.posted = datetime(int(year), int(month), int(day), int(hour), int(minute))
+        self.title = title
+        self.filename = full_path.name
+        self.file_path = full_path
+        self.uri = self.env.map(full_path)
+
+        return True
+
+    def parse_content(self):
+        """
+        Open and parse the content of this blog post
+        """
+        handler = self.env.get(self.file_path)
+        self.html = handler.as_html()
+
+
+class BlogType(BaseType):
+    posts = None
+
+    def __init__(self, env, handler, dir_path, meta):
+        """
+        Init blog type
+        """
+        super(BlogType, self).__init__(env, handler, dir_path, meta)
+        self.posts = []
+
+    def process(self):
+        """
+        Process the blog directory, generating an index of posts suitable for use by the renderers
+        """
+
+        # Find posts
+        for fn in self.dir_path.files():
+            # Matches blog pattern?
+            log.debug("Hunting for blog post in %s" % fn.name)
+            post = BlogPost()
+            if not post.load_from(self.env, self.dir_path.joinpath(fn)):
+                # Not a blog post
+                continue
+            log.debug("Found blog post %s @ %s" % (post.title, post.posted))
+            self.posts.append(post)
+
+        # Sort posts
+        self.posts.sort(lambda a, b: cmp(a.posted, b.posted))
+
+        # Obtain content for each post in first pass
+        for post in self.posts:
+            post.parse_content()
+
+        # Render all the posts
+        # Get the renderer
+        post_renderer = self.env.get(self.dir_path.joinpath(self.meta['post_renderer']))
+        for post in self.posts:
+            log.debug("Writing post %s to %s" % (post.title, self.env.map(post.file_path)))
+            post_renderer.write_to(self.env.to_dest(post.file_path), post=post)
+
+        # Render the index
+        index_renderer = self.env.get(self.dir_path.joinpath(self.meta['index_renderer']))
+        index_renderer.write_to(self.env.to_dest(self.dir_path.joinpath(self.meta['index_renderer'])), posts=self.posts)
+
+        # Dispatch sub-dirs
+        self.dispatch_dirs()
+
+
 class PathMapBase(object):
     """
     Base class for Path Remappers
@@ -796,7 +1057,7 @@ def watch_and_build(source_dir, destination_dir):
     except ImportError:
         watchdog = None
     if not watchdog:
-        log.error("Cannot autobuild, you need the watchdog package installed. Try pip install watchdog")
+        log.error("Cannot auto-build, you need the watchdog package installed. Try pip install watchdog")
         sys.exit(1)
 
     class FileChangeEventHandler(watchdog.events.FileSystemEventHandler):
@@ -863,6 +1124,9 @@ def perform_build(source_dir, destination_dir):
     builder.register_map(Jinja2PathMap)
     builder.register_map(MarkdownPathMap)
     builder.register_map(DefaultPathMap)
+
+    builder.register_type(DefaultTypeHandler)
+    builder.register_type(BlogTypeHandler)
 
     builder.clean()
     builder.build()

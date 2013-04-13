@@ -1,16 +1,16 @@
-{% extends 'blog/_blog_base.jinja2' %}
+<html>
+<body>
+{% markdown %}
+    # More Blog
 
-{% block blog_content %}
-    {% markdown %}
-        # More Blog
+    Markdown lets you write all kinds of things for your blog post, but sometimes it's just not enough. Sometimes you want
+    to print out the current URL inside your blog post:
+{% endmarkdown %}
 
-        Markdown lets you write all kinds of things for your blog post, but sometimes it's just not enough. Sometimes you want
-        to print out the current URL inside your blog post:
-    {% endmarkdown %}
+<pre>{{ url }}</pre>
 
-    <pre>{{ url }}</pre>
-
-    {% markdown %}
-        Doing this is easy enough, just use a ```.jinja2``` file for your blog entry.
-    {% endmarkdown %}
-{% endblock %}
+{% markdown %}
+    Doing this is easy enough, just use a ```.jinja2``` file for your blog entry.
+{% endmarkdown %}
+</body>
+</html>
