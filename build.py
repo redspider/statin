@@ -10,10 +10,7 @@ Current issues:
  * You can probably go into an infinite loop pretty easily using grab
  * Image resizing/conversion
  * Perhaps create a couple of intermediate classes for things like HTMLOutputFile or something
- * Metadata from .yml files
  * Blogs are shit.
-   * Next/previous post
-   * Formatting of date/time
    * Indexes, possibly with javascript to allow sorting / pagination
 
 
@@ -34,8 +31,14 @@ Current issues:
    * Date formatter
    * Maybe a sidebar or something
    * <-- more --> support?
+   * Need to process blog before we do final render for the rest of the site so that, say, the index page can ref the
+     blog posts - or could have a get_type that does the type processing for the blog first then hands it back
 
  WARNING/TODO: DO NOT FORGET YOU'RE USING A GIT VERSION OF CSSSELECT TO SUPPORT :first
+
+
+ So, maybe it should be a two-phase operation. Phase one builds a tree of the source, with each element doing as much
+ no-dependency processing as possible. The second phase then compiles the tree and writes it out.
 
 """
 from datetime import datetime
@@ -274,6 +277,7 @@ class BuildEnvironment(object):
                 self.type_map[full_path] = t.load(full_path, meta)
                 log.debug("Registered type %r for path %s" % (self.type_map[full_path], full_path))
                 self.type_map[full_path].process()
+                return self.type_map[full_path]
 
     def get(self, file_path):
         """
@@ -569,7 +573,7 @@ class Jinja2File(BaseFile):
         """
 
         self.ensure_output_dir(file_path)
-        open(file_path, 'w').write(self.template.render(source_path=self.file_path, destination_path=file_path, url=self.env.map(self.file_path), to_root=self.jinja2_to_root(), **kwargs))
+        open(file_path, 'w').write(self.template.render(source_path=self.file_path, destination_path=file_path, dispatch_type=self.jinja2_dispatch_type, path=path, url=self.env.map(self.file_path), to_root=self.jinja2_to_root(), **kwargs))
 
     def as_html(self, **kwargs):
         """
@@ -589,6 +593,14 @@ class Jinja2File(BaseFile):
         @rtype: str|unicode
         """
         return str(self.file_path.parent.relpathto(self.env.source_dir))
+
+    def jinja2_dispatch_type(self, file_path):
+        """
+        Return a given type
+        """
+        dt = self.env.dispatch_type(self.env.source_dir.joinpath(file_path))
+        print self.env.source_dir.joinpath(file_path), file_path, dt
+        return dt
 
 
 class MarkdownFileHandler(BaseFileHandler):

@@ -27,15 +27,15 @@
             {% endfor %}
 
             <h3>Latest blog posts</h3>
-            {% for article in glob('blog/2*') %}
+            {% for post in dispatch_type('blog').posts %}
                 <article>
                     <header>
                         <h4>
-                            <i class="icon-calendar"></i> <a href="{{ map(article) }}">{{ select(grab(article).as_html(),'h1').text() }}</a>
+                            <i class="icon-calendar"></i> <a href="{{ to_root }}/{{ post.uri }}">{{ post.title }}</a>
                         </h4>
                     </header>
                     <p>
-                        {{ select(grab(article).as_html(),'h1 + p').text() }}
+                        {{ select(post.html,'p:first').text() }}
                     </p>
                 </article>
             {% endfor %}
