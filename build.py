@@ -597,10 +597,10 @@ class Jinja2File(BaseFile):
     def jinja2_dispatch_type(self, file_path):
         """
         Return a given type
+        @param file_path: Source-relative path to type (dir)
+        @type file_path: str|unicode
         """
-        dt = self.env.dispatch_type(self.env.source_dir.joinpath(file_path))
-        print self.env.source_dir.joinpath(file_path), file_path, dt
-        return dt
+        return self.env.dispatch_type(self.env.source_dir.joinpath(file_path))
 
 
 class MarkdownFileHandler(BaseFileHandler):
